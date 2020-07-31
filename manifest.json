@@ -1,0 +1,19 @@
+{
+    "name": "HuluParty",
+    "version": "1.0",
+    "description": "Watch Hulu with others.",
+    "page_action": {
+        "default_icon":{
+            "32": "images/greenH.png"
+        },
+        "default_popup": "popup.html"
+    },
+    "background": {
+        "scripts": ["background.js"],
+        "persistent": false
+    },
+    "permissions": [
+        "declarativeContent"
+    ],
+    "manifest_version": 2
+  }
