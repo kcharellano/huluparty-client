@@ -9,11 +9,14 @@
         "default_popup": "popup.html"
     },
     "background": {
-        "scripts": ["background.js"],
+        "scripts": [
+            "background.js"
+        ],
         "persistent": false
     },
     "permissions": [
-        "declarativeContent"
+        "declarativeContent",
+        "activeTab"
     ],
     "manifest_version": 2
   }
