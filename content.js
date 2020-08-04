@@ -20,20 +20,42 @@ const example = {
     videoid: "none"
 };
 
+// in-memory store of all the sessions
+// the keys are the session IDs (strings)
+// the values have the form: {
+//   id: '84dba68dcea2952c',             // 8 random octets
+//   lastActivity: new Date(),           // used to find old sessions to vacuum
+//   lastKnownTime: 123,                 // milliseconds from the start of the video
+//   lastKnownTimeUpdatedAt: new Date(), // when we last received a time update
+//   state: 'playing' | 'paused',        // whether the video is playing or paused
+//   videoId: 123                        // Netflix id the video
+// }
 let currentSession = {}
 
 chrome.runtime.onMessage.addListener((message, sender, callback) => {
     if(message === 'create-session'){
-        socket.emit('createSession', example);
-        //if playing, pause the video
-    }
-    else if(message === 'pause'){
-        if(!jQuery('.video-player').get(0).paused){
+        let state = getVideoState();
+        let pos = getVideoTime();
+        let videoId = getVideoId();
+        // Pause the video
+        if(state === 'playing'){
             jQuery('.controls__playback-button').click();
         }
+
+        socket.emit('createSession', example);
     }
+    
+    //For testing
+    else if(message === 'pause'){
+        if(getVideoState() === 'playing'){
+            jQuery('.controls__playback-button').click();
+        }
+       getVideoId();
+    }
+
+    //For testing
     else if(message === 'play'){
-        if(jQuery('.video-player').get(0).paused){
+        if(getVideoState() === 'paused'){
             jQuery('.controls__playback-button').click();
         }
     }
@@ -46,3 +68,20 @@ socket.on('newSession', (data) => {
     currentSession = data;
     console.log(currentSession);
 });
+
+// Helper Methods
+
+function getVideoState() {
+    return jQuery('.video-player').get(0).paused ? 'paused' : 'playing';
+}
+
+function getVideoTime() {
+    return jQuery('video-player').get(0).currentTime;
+}
+
+function getVideoId() {
+    let arr = document.URL.split('/');
+    return arr[arr.length - 1];
+}
+
+//TODO: Add pause and play functions
