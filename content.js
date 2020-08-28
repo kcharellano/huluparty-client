@@ -48,31 +48,32 @@ chrome.runtime.onMessage.addListener((message, sender, callback) => {
     //For testing
     else if(message === 'pause'){
         if(getVideoState() === 'playing'){
-            jQuery('.controls__playback-button').click();
+            pauseVideo();
         }
-       getVideoId();
     }
 
     //For testing
     else if(message === 'play'){
         if(getVideoState() === 'paused'){
-            jQuery('.controls__playback-button').click();
+            playVideo();
         }
     }
 });
 
-// Events from server
-
+///////////////////////
+//   CLIENT METHODS  //
+///////////////////////
 // store newly created session information
 socket.on('newSession', (data) => {
     currentSession = data;
     console.log(currentSession);
 });
 
-// Helper Methods
-
+///////////////////////
+//   HELPER METHODS  //
+///////////////////////
 function getVideoState() {
-    return jQuery('.video-player').get(0).paused ? 'paused' : 'playing';
+    return jQuery('#content-video-player').get(0).paused ? 'paused' : 'playing';
 }
 
 function getVideoTime() {
@@ -84,4 +85,10 @@ function getVideoId() {
     return arr[arr.length - 1];
 }
 
-//TODO: Add pause and play functions
+function playVideo() {
+    jQuery('#content-video-player').get(0).play();
+}
+
+function pauseVideo() {
+    jQuery('#content-video-player').get(0).pause();
+}
