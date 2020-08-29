@@ -25,6 +25,7 @@ let sessionId = null;
 //   videoId: 123                        // Netflix id the video
 // }
 
+// Recieve messages from popup
 chrome.runtime.onMessage.addListener((message, sender, callback) => {
     if(message === 'create-session'){
         // pause video
@@ -41,7 +42,6 @@ chrome.runtime.onMessage.addListener((message, sender, callback) => {
     
     //For testing
     else if(message === 'pause'){
-        console.log(sessionId);
         if(getVideoState() === 'playing'){
             pauseVideo();
         }
@@ -86,9 +86,37 @@ function pauseVideo() {
 ///////////////////////
 //   CLIENT METHODS  //
 ///////////////////////
+
+// Receive messages from server
 socket.on('newId', (data) => {
     sessionId = data;
 });
+
+// Send updates to server
+document.getElementById("content-video-player").addEventListener("pause", () => {
+    if (sessionId != null){
+        let updateData = {"sessionId": sessionId, "state": "paused"};
+        socket.emit("updateSession", updateData);
+    }
+});
+
+document.getElementById("content-video-player").addEventListener("playing", () => {
+    if (sessionId != null){
+        let updateData = {"sessionId": sessionId, "state": "playing"};
+        socket.emit("updateSession", updateData);
+    }
+});
+
+document.getElementById("content-video-player").addEventListener("seeked", () => {
+    if (sessionId != null){
+        let updateData = {
+            "sessionId": sessionId,
+            "lastVideoPos": document.getElementById("content-video-player").currentTime
+        };
+        socket.emit("updateSession", updateData);
+    }
+});
+
 
 ///////////////////////
 //   MISC METHODS  //
