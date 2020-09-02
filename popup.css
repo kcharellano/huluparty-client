@@ -1,0 +1,27 @@
+body {
+    height: 150px;
+    width: 300px;
+    background-color: #f0ead6;
+  }
+
+  #CreateButton {
+    display: block;
+  }
+
+  #createTextBox {
+    display: block;
+  }
+
+  #JoinButton {
+    display: block;
+  }
+
+  #joinTextBox {
+    display: block;
+  }
+
+  #testButton {
+    display: block;
+  }
+
+  
