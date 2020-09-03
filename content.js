@@ -19,21 +19,12 @@
         const socket = io('http://localhost:3000');
         var sessionId = null;
         var userId = null;
-
-        // in-memory store of all the sessions
-        // the keys are the session IDs (strings)
-        // the values have the form: {
-        //   id: '84dba68dcea2952c',             // 8 random octets
-        //   lastActivity: new Date(),           // used to find old sessions to vacuum
-        //   lastKnownTime: 123,                 // milliseconds from the start of the video
-        //   lastKnownTimeUpdatedAt: new Date(), // when we last received a time update
-        //   state: 'playing' | 'paused',        // whether the video is playing or paused
-        //   videoId: 123                        // Netflix id the video
-        // }
+        var updateLock = false;
+        var contentPlayer = document.getElementById("content-video-player");
 
         // Recieve messages from popup
         chrome.runtime.onMessage.addListener((message, sender, callback) => {
-            if(message['request'] === 'create-session'){
+            if(message.request === 'create-session'){
                 // pause video
                 pauseVideo();
                 // wrap video metadata in object
@@ -46,57 +37,29 @@
                 // create session on server
                 socket.emit('createSession', metaData);
             }
-            else if(message['request'] === 'join-session'){
+            else if(message.request === 'join-session'){
+                console.log("JOIN REQUEST FROM POPUP");
+                sessionId = message["data"];
                 let newMessage = {
                     "userId": userId,
-                    "sessionId": message["data"]
+                    "sessionId": sessionId
                 }
                 socket.emit('joinSession', newMessage);
             }
-            else if(message["request"] === "test"){
-                if(document.getElementById("content-video-player").paused){
-                    document.getElementById("content-video-player").play();
+            //USED ONLY FOR TESTING PURPOSES
+            else if(message.request === "test"){
+                if(contentPlayer.paused){
+                    playVideo();
                 }
                 else{
-                    document.getElementById("content-video-player").pause();
+                    pauseVideo();
                 }
             }
         });
 
-        ///////////////////////
-        //   HELPER METHODS  //
-        ///////////////////////
-
-        // return string
-        function getVideoState() {
-            return jQuery('#content-video-player').get(0).paused ? 'paused' : 'playing';
-        }
-
-        //return float
-        function getVideoTime() {
-            return jQuery('#content-video-player').get(0).currentTime;
-        }
-
-        // return string
-        function getVideoId() {
-            let pageUrl = document.URL.split('/');
-            return pageUrl[pageUrl.length - 1];
-        }
-
-        function playVideo() {
-            jQuery('#content-video-player').get(0).play();
-        }
-
-        function pauseVideo() {
-            jQuery('#content-video-player').get(0).pause();
-        }
-
-        ///////////////////////
-        //   CLIENT METHODS  //
-        ///////////////////////
-
-        // Receive messages from server
-
+        //////////////////////////////
+        //   HANDLE SERVER EVENTS   //
+        //////////////////////////////
         socket.on('newSession', (data) => {
             sessionId = data;
             let joinUrl = document.URL + "?hpSessionId=" + data
@@ -108,74 +71,108 @@
         });
 
         socket.on("videoUpdate", (data) => {
+            updateLock = true;
             console.log("UPDATE RECEIVED");
             console.log(data);
-            let player = document.getElementById("content-video-player");
             if(data["lastVideoPos"]){
-                player.currentTime = data["lastVideoPos"];
+                contentPlayer.currentTime = data["lastVideoPos"];
             }
             if(data["state"]){
                 if(data["state"] === "paused"){
-                    if(!player.paused){
-                        player.pause();
-                    }
+                    pauseVideo();
                 }
                 else if(data["state"] === "playing"){
-                    if(player.paused){
-                        player.play();
-                    }
+                    playVideo();
                 }
             }
+            updateLock = false;
         });
 
         //Sync video with server metadata
         socket.on("returnSession", (data) => {
-            let player = document.getElementById("content-video-player");
-            player.currentTime = data["lastVideoPos"];
-            player.paused = (data["state"] === "paused") ? true : false; 
+            contentPlayer.currentTime = data["lastVideoPos"];
+            contentPlayer.paused = (data["state"] === "paused") ? true : false; 
         });
 
-
-        // Send updates to server
-        document.getElementById("content-video-player").addEventListener("pause", () => {
-            if (sessionId != null){
-                let updateData = {
-                    "sessionId": sessionId,
-                    "userId": userId,
-                    "lastVideoPos": document.getElementById("content-video-player").currentTime,
-                    "state": "paused"
-                };
-                socket.emit("updateSession", updateData);
+        /////////////////////////////////
+        //    SEND UPDATES TO SERVER   //
+        /////////////////////////////////
+        contentPlayer.addEventListener("pause", () => {
+            if(!updateLock) {
+                if (sessionId != null){
+                    let updateData = {
+                        "sessionId": sessionId,
+                        "userId": userId,
+                        "lastVideoPos": contentPlayer.currentTime,
+                        "state": "paused"
+                    };
+                    socket.emit("updateSession", updateData);
+                    console.log("Update sent(pause)");
+                }
+                else{
+                    console.log(`sessionId is ${sessionId}`);
+                }
             }
         });
 
-        document.getElementById("content-video-player").addEventListener("playing", () => {
-            if (sessionId != null){
-                let updateData = {
-                    "sessionId": sessionId,
-                    "userId": userId,
-                    "state": "playing"
-                };
-                socket.emit("updateSession", updateData);
+        contentPlayer.addEventListener("playing", () => {
+            if(!updateLock) {
+                if (sessionId != null){
+                    let updateData = {
+                        "sessionId": sessionId,
+                        "userId": userId,
+                        "state": "playing"
+                    };
+                    socket.emit("updateSession", updateData);
+                    console.log("Update sent(playing)");
+                }
+                else{
+                    console.log(`sessionId is ${sessionId}`);
+                }
             }
         });
-
-        document.getElementById("content-video-player").addEventListener("seeked", () => {
-            if (sessionId != null){
-                let updateData = {
-                    "sessionId": sessionId,
-                    "userId": userId,
-                    "lastVideoPos": document.getElementById("content-video-player").currentTime
-                };
-                socket.emit("updateSession", updateData);
-            }
-        });
-
 
         ///////////////////////
-        //   MISC METHODS  //
+        //   HELPER METHODS  //
         ///////////////////////
 
-        //console.log(window.location.toString());
+        // return string
+        function getVideoState() {
+            return contentPlayer.paused ? 'paused' : 'playing';
+        }
+
+        //return float
+        function getVideoTime() {
+            return contentPlayer.currentTime;
+        }
+
+        // return string
+        function getVideoId() {
+            let pageUrl = document.URL.split('/');
+            return pageUrl[pageUrl.length - 1];
+        }
+
+        // Needed to prevent errors from quick pause/play updates
+        var videoIsPlaying = true;
+
+        contentPlayer.onplaying = () => {
+            videoIsPlaying = true;
+        };
+
+        contentPlayer.onpause = () => {
+            videoIsPlaying = false;
+        };
+
+        function playVideo() {
+            if(contentPlayer.paused && !videoIsPlaying){
+                contentPlayer.play();
+            }
+        }
+
+        function pauseVideo() {
+            if(!contentPlayer.paused && videoIsPlaying) {
+                contentPlayer.pause();
+            }
+        }
     }
 })();
