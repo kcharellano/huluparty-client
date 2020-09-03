@@ -79,9 +79,11 @@
             }
             if(data["state"]){
                 if(data["state"] === "paused"){
+                    console.log("SHOULD PAUSE VIDEO");
                     pauseVideo();
                 }
                 else if(data["state"] === "playing"){
+                    console.log("SHOULD PLAY VIDEO");
                     playVideo();
                 }
             }
@@ -90,8 +92,10 @@
 
         //Sync video with server metadata
         socket.on("returnSession", (data) => {
-            contentPlayer.currentTime = data["lastVideoPos"];
-            contentPlayer.paused = (data["state"] === "paused") ? true : false; 
+            updateLock = true;
+            updateVideoTime(data.lastVideoPos);
+            (data["state"] === "paused") ? pauseVideo() : playVideo();
+            updateLock = false; 
         });
 
         /////////////////////////////////
@@ -132,6 +136,10 @@
             }
         });
 
+        contentPlayer.addEventListener("seeked", () => {
+            console.log("SEEKED EVENT TRIGGERED");
+        });
+
         ///////////////////////
         //   HELPER METHODS  //
         ///////////////////////
@@ -152,6 +160,10 @@
             return pageUrl[pageUrl.length - 1];
         }
 
+        function updateVideoTime(newTime) {
+            contentPlayer.currentTime = newTime;
+        }
+
         // Needed to prevent errors from quick pause/play updates
         var videoIsPlaying = true;
 
@@ -165,12 +177,14 @@
 
         function playVideo() {
             if(contentPlayer.paused && !videoIsPlaying){
+                console.log("PASSED PLAY");
                 contentPlayer.play();
             }
         }
 
         function pauseVideo() {
             if(!contentPlayer.paused && videoIsPlaying) {
+                console.log("PASSED PAUSE");
                 contentPlayer.pause();
             }
         }
