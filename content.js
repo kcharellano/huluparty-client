@@ -19,6 +19,7 @@
         const socket = io('http://localhost:3000');
         var sessionId = null;
         var userId = null;
+        var videoIsPlaying = true;
         var updateLock = false;
         var contentPlayer = document.getElementById("content-video-player");
 
@@ -71,78 +72,105 @@
         });
 
         socket.on("videoUpdate", (data) => {
-            updateLock = true;
-            console.log("UPDATE RECEIVED");
-            console.log(data);
-            if(data["lastVideoPos"]){
-                contentPlayer.currentTime = data["lastVideoPos"];
-            }
-            if(data["state"]){
-                if(data["state"] === "paused"){
-                    console.log("SHOULD PAUSE VIDEO");
-                    pauseVideo();
+            blockUpdates().then(() => {
+                console.log("UPDATE RECEIVED");
+                console.log(data);
+                if(data.lastVideoPos){
+                    contentPlayer.currentTime = data.lastVideoPos;
                 }
-                else if(data["state"] === "playing"){
-                    console.log("SHOULD PLAY VIDEO");
-                    playVideo();
+                if(data.state){
+                    if(data.state === "paused"){
+                        console.log("SHOULD PAUSE VIDEO");
+                        pauseVideo();
+                    }
+                    else if(data.state === "playing"){
+                        console.log("SHOULD PLAY VIDEO");
+                        playVideo();
+                    }
                 }
-            }
-            updateLock = false;
+            }).then(() => {
+                updateLock = false;
+            });
         });
 
         //Sync video with server metadata
         socket.on("returnSession", (data) => {
-            updateLock = true;
-            updateVideoTime(data.lastVideoPos);
-            (data["state"] === "paused") ? pauseVideo() : playVideo();
-            updateLock = false; 
+            blockUpdates().then(() => {
+                updateVideoTime(data.lastVideoPos);
+                (data.state === "paused") ? pauseVideo() : playVideo();
+            }).then(() => {
+                updateLock = false;
+            });
         });
 
         /////////////////////////////////
         //    SEND UPDATES TO SERVER   //
         /////////////////////////////////
         contentPlayer.addEventListener("pause", () => {
+            videoIsPlaying = false;
             if(!updateLock) {
                 if (sessionId != null){
                     let updateData = {
                         "sessionId": sessionId,
                         "userId": userId,
-                        "lastVideoPos": contentPlayer.currentTime,
-                        "state": "paused"
+                        "state": getVideoState()
                     };
                     socket.emit("updateSession", updateData);
                     console.log("Update sent(pause)");
                 }
                 else{
-                    console.log(`sessionId is ${sessionId}`);
+                    console.log("NOT CONNECTED TO A SESSION!");
                 }
             }
         });
 
         contentPlayer.addEventListener("playing", () => {
+            videoIsPlaying = true;
             if(!updateLock) {
                 if (sessionId != null){
                     let updateData = {
                         "sessionId": sessionId,
                         "userId": userId,
-                        "state": "playing"
+                        "state": getVideoState()
                     };
                     socket.emit("updateSession", updateData);
                     console.log("Update sent(playing)");
                 }
                 else{
-                    console.log(`sessionId is ${sessionId}`);
+                    console.log("NOT CONNECTED TO A SESSION!");
                 }
             }
         });
 
         contentPlayer.addEventListener("seeked", () => {
-            console.log("SEEKED EVENT TRIGGERED");
+            if(!updateLock) {
+                if(sessionId != null) {
+                    if($(".ControlScrims--scrubbing").length > 0){
+                        let updateData = {
+                            "sessionId": sessionId,
+                            "userId": userId,
+                            "state": getVideoState(),
+                            "lastVideoPos": contentPlayer.currentTime
+                        };
+                        socket.emit("updateSession", updateData);
+                        console.log("Update sent(seeked)");
+                    }
+                }
+                else{
+                    console.log("NOT CONNECTED TO A SESSION!");
+                }
+            }
         });
 
         ///////////////////////
         //   HELPER METHODS  //
         ///////////////////////
+        function blockUpdates() {
+            return new Promise((resolve, reject) => {
+                updateLock = true;
+                resolve();
+            });
+        } 
 
         // return string
         function getVideoState() {
@@ -165,27 +193,17 @@
         }
 
         // Needed to prevent errors from quick pause/play updates
-        var videoIsPlaying = true;
-
-        contentPlayer.onplaying = () => {
-            videoIsPlaying = true;
-        };
-
-        contentPlayer.onpause = () => {
-            videoIsPlaying = false;
-        };
-
         function playVideo() {
             if(contentPlayer.paused && !videoIsPlaying){
                 console.log("PASSED PLAY");
-                contentPlayer.play();
+                $('[data-testid=playButton]').get(0).click();
             }
         }
 
         function pauseVideo() {
             if(!contentPlayer.paused && videoIsPlaying) {
                 console.log("PASSED PAUSE");
-                contentPlayer.pause();
+                $('[data-testid=playButton]').get(0).click();
             }
         }
     }
