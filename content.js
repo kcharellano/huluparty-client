@@ -24,10 +24,11 @@
         var videoIsPlaying = true;
         var updateLock = false;
         var contentPlayer = document.getElementById("content-video-player");
-        var lastUpdate = {
-            "state": null,
-            "lastVideoPos": null
-        };
+        var slider = $('.Timeline__slider');
+        const sliderValueObserver = new MutationObserver(() => {
+            console.log(`Time change: ${slider.attr("aria-valuenow")}`);
+        });
+    
 
         // Recieve messages from popup
         chrome.runtime.onMessage.addListener((message, sender, callback) => {
@@ -55,12 +56,7 @@
             }
             //USED ONLY FOR TESTING PURPOSES
             else if(message.request === "test"){
-                if(contentPlayer.paused){
-                    playVideo();
-                }
-                else{
-                    pauseVideo();
-                }
+                console.log(slider.attr("aria-valuenow"));
             }
         });
 
@@ -112,6 +108,7 @@
         /////////////////////////////////
         //    SEND UPDATES TO SERVER   //
         /////////////////////////////////
+        // Play/pause updates
         $('[data-testid=playButton]').get(0).onclick = () => {
             if($('.PlayButton').length > 0) {
                 //clicked to play video
@@ -149,7 +146,10 @@
                 console.log("Couldn't find button");
             }
         };
-        
+
+        // Time updates such as forwarding/rewinding
+        sliderValueObserver.observe(slider.get(0), {attributeFilter: ["aria-valuenow"]});
+
         ///////////////////////
         //   HELPER METHODS  //
         ///////////////////////
@@ -203,8 +203,5 @@
             updateLock = false;
         }
 
-        function isObjEmpty(myObj) {
-            Object.keys(myObj).length === 0 && myObj.constructor === Object;
-        }
     }
 })();
