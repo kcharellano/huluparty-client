@@ -18,15 +18,16 @@
 
         const socket = io('http://localhost:3000');
         const PAUSE_STATE = "paused";
-        const PLAY_STATE = "playing"
+        const PLAY_STATE = "playing";
+        const ARIA_VALUENOW = "aria-valuenow";
         var sessionId = null;
         var userId = null;
         var videoIsPlaying = true;
         var updateLock = false;
         var contentPlayer = document.getElementById("content-video-player");
         var slider = $('.Timeline__slider');
-        const sliderValueObserver = new MutationObserver(() => {
-            console.log(`Time change: ${slider.attr("aria-valuenow")}`);
+        const sliderValObs = new MutationObserver((mrecord) => {
+            console.log(`${getSliderValue()} | ${mrecord[0].oldValue}`);
         });
     
 
@@ -56,7 +57,7 @@
             }
             //USED ONLY FOR TESTING PURPOSES
             else if(message.request === "test"){
-                console.log(slider.attr("aria-valuenow"));
+                console.log(getSliderValue());
             }
         });
 
@@ -148,11 +149,15 @@
         };
 
         // Time updates such as forwarding/rewinding
-        sliderValueObserver.observe(slider.get(0), {attributeFilter: ["aria-valuenow"]});
+        sliderValObs.observe(slider.get(0), {
+            attributeFilter: [ARIA_VALUENOW],
+            attributeOldValue: true
+        });
 
         ///////////////////////
         //   HELPER METHODS  //
         ///////////////////////
+
         function blockUpdates() {
             return new Promise((resolve, reject) => {
                 activateLock();
@@ -178,6 +183,10 @@
 
         function updateVideoTime(newTime) {
             contentPlayer.currentTime = newTime;
+        }
+
+        function getSliderValue() {
+            return slider.attr(ARIA_VALUENOW);
         }
 
         // Needed to prevent errors from quick pause/play updates
