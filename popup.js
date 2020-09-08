@@ -26,11 +26,16 @@ $(function() {
             });
 
             joinButton.addEventListener('click', (eventObj) => {
-                let message = {
+                if(document.getElementById('joinTextBox').value !== ""){ 
+                    let message = {
                     "request": "join-session",
                     "data": document.getElementById('joinTextBox').value.split('?')[PARAM_INDEX].split('=')[SESSIONID_INDEX]
-                };
-                sendMessage(message);
+                    };
+                    sendMessage(message);
+                }
+                else {
+                    console.log("empty text box");
+                }
             });
 
             testButton.addEventListener('click', (eventObj) => {
