@@ -19,7 +19,7 @@ $(function() {
         //Run content script
         chrome.tabs.executeScript(tabs[WINDOW_ID].id, EXEC_OPT, () => {
             //Create listeners for popup inputs
-            
+
             createButton.addEventListener('click', (eventObj) => {
                 let message = {"request": "create-session"};
                 sendMessage(message);
@@ -40,7 +40,7 @@ $(function() {
 
             testButton.addEventListener('click', (eventObj) => {
                 let message = {
-                    "request": "test"
+                    "request": "test",
                 };
                 sendMessage(message);
             });

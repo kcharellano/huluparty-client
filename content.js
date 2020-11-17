@@ -25,11 +25,10 @@
             var userId = null;
             var videoIsPlaying = true;
             var updateLock = false;
-            var contentPlayer = document.getElementById("content-video-player");
+            var contentPlayer = $("#content-video-player");
+            var contentButton  = $(".PlaybackControls__item")[0]
             var slider = $('.Timeline__slider');
             const sliderValObs = new MutationObserver((mrecord) => {
-                // If oldvalue is 
-                //console.log(`${getSliderValue()} | ${mrecord[0].oldValue}`);
                 let diff = +getSliderValue() - +mrecord[0].oldValue; 
                 if(diff > SEEK_THRESHOLD || diff < -SEEK_THRESHOLD){
                     //console.log({"lastVideoPos": getVideoTime(), "state": getVideoState()})
@@ -53,6 +52,8 @@
                 }
             });
 
+            var testCounter = 1
+
             // Recieve messages from popup
             chrome.runtime.onMessage.addListener((message, sender, callback) => {
                 if(message.request === 'create-session'){
@@ -75,8 +76,8 @@
                 }
                 //USED ONLY FOR TESTING PURPOSES
                 else if(message.request === "test"){
-                    //console.log(getSliderValue());
-                    printTime(getSliderValue());
+                    contentButton.click()
+                    //console.log($(".PlaybackControls__item"))
                 }
             });
 
@@ -118,8 +119,11 @@
             //Sync video with server metadata
             socket.on("returnSession", (data) => {
                 blockUpdates().then(() => {
-                    updateVideoTime(data.lastVideoPos);
                     (data.state === PAUSE_STATE) ? pauseVideo() : playVideo();
+                }).then(() => {
+                    console.log(`readyState: ${contentPlayer.readyState}`);
+                    handleViewer.goToTime(data.lastVideoPos);
+                    printTime(getSliderValue());
                 }).then(() => {
                     deactivateLock();
                 });
@@ -134,8 +138,9 @@
                     //clicked to play video
                     videoIsPlaying = true;
                     if(sessionId != null && !updateLock) {
-                        socket.emit("updateSession", {"sessionId": sessionId,"userId": userId,"state": PLAY_STATE});
-                        console.log("Update sent(play)");
+                        let up = {"sessionId": sessionId,"userId": userId,"state": PLAY_STATE};
+                        socket.emit("updateSession", up);
+                        console.log(`Update sent(play) | ${up}`);
                     }
                     else{
                         if(sessionId == null) {
@@ -150,8 +155,9 @@
                     //clicked to pause video
                     videoIsPlaying = false;
                     if(sessionId != null && !updateLock) {
-                        socket.emit("updateSession", {"sessionId": sessionId,"userId": userId,"state": PAUSE_STATE});
-                        console.log("Update sent(pause)");
+                        let pu = {"sessionId": sessionId,"userId": userId,"state": PAUSE_STATE};
+                        socket.emit("updateSession", pu);
+                        console.log(`Update sent(pause) | ${pu}`);
                     }
                     else{
                         if(sessionId == null) {
@@ -176,13 +182,78 @@
             ///////////////////////
             //   HELPER METHODS  //
             ///////////////////////
+            handleViewer = function(){
+                var thumbnailMarker = $('.Thumbnail'),
+                    progressBarTotal = thumbnailMarker.parent(),
+                    controlsBar = $('.controls-bar'),
+                    videoPlayer = $('#content-video-player');
+
+                console.log(`thumb: ${thumbnailMarker.length}`);
+                console.log(`controlBar: ${controlsBar.length}`);
+                console.log(`player: ${videoPlayer.length}`);
+                console.log(`progressBar: ${progressBarTotal.length}`);
+
+                var init = function(){
+                        thumbnailMarker = $('.Thumbnail');
+                        progressBarTotal = thumbnailMarker.parent();
+                        controlsBar = $('.controls-bar');
+                        videoPlayer = $('#content-video-player');
+                },
+                check = function(){
+                    if(!thumbnailMarker || !thumbnailMarker.length){
+                        init();
+                    }
+                },
+                show = function(){
+                        thumbnailMarker.show();
+                        progressBarTotal.show();
+                        controlsBar.show();
+                },
+                hide = function(){
+                    controlsBar.hide();
+                },
+                getProgressBarWidth = function(){
+                    return progressBarTotal[0].offsetWidth;
+                };
+            
+                return {
+                    goToTime: function(time){
+                        var seekPercentage, duration;
+                        check();
+                        duration = videoPlayer[0].duration;
+                        if(time > 0 && time < duration){
+                            seekPercentage = time/duration;
+                            this.jumpToPercentage(seekPercentage);
+                        }
+            
+                    },
+                    jumpToPercentage: function(percentage){
+                        check();
+                        if(percentage >= 1 && percentage <= 100){
+                            percentage = percentage/100;
+                        }
+                        if(percentage >= 0 && percentage < 1){
+                            show();
+                            thumbnailMarker[0].style.left = (getProgressBarWidth()*percentage)+"px";
+                            thumbnailMarker[0].click();
+                            hide();
+                        }
+                    }
+                }
+            }();
 
             function blockUpdates() {
                 return new Promise((resolve, reject) => {
                     activateLock();
                     resolve();
                 });
-            } 
+            }
+            
+            function emptyPromise() {
+                return new Promise((resolve, reject) => {
+                    resolve();
+                });
+            }
 
             // return string
             function getVideoState() {
@@ -201,12 +272,24 @@
             }
 
             function updateVideoTime(newTime) {
-                //console.log(`${contentPlayer.currentTime} | ${newTime}`);
-                //contentPlayer.currentTime = newTime;
                 printTime(getSliderValue());
+                console.log(contentPlayer.readyState);
                 slider.attr(ARIA_VALUENOW, newTime.toString());
+                console.log(contentPlayer.readyState);
                 printTime(getSliderValue());
-                //console.log(`${contentPlayer.currentTime}`);
+            }
+
+            function forwardVideoTime() {
+                console.log(`old: ${contentPlayer.currentTime}`);
+                let mytime = contentPlayer.currentTime;
+                contentPlayer.currentTime = mytime + 10;
+                console.log(`new: ${contentPlayer.currentTime}`);
+            }
+
+            function changeTime(newTime) {
+                console.log(`old: ${contentPlayer.currentTime}`);
+                contentPlayer.currentTime = newTime;
+                console.log(`new: ${contentPlayer.currentTime}`);
             }
 
             function getSliderValue() {
@@ -240,6 +323,27 @@
                 let minutes = Math.floor(+value / 60);
                 let seconds = Math.floor(+value % 60);
                 console.log(`${minutes}:${seconds}`);
+            }
+            //-------- NEW METHODS --------//
+            
+            /**
+             * Updates the currentTime property of the content player
+             * @param {Number} pos timestamp in seconds
+             */
+            function seekTo(pos) {
+                contentPlayer.currentTime = pos
+            }
+
+            /**
+             * Changes the videos playing state if newState is different
+             * the current state else does nothing
+             * @param {String} newState paused or playing 
+             */
+            function changeVideoState(newState) {
+                currentState = contentPlayer.paused ? "paused" : "playing";
+                if (currentState != newState) {
+                    contentButton.click()
+                }                
             }
         });
     }
