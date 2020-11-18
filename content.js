@@ -25,9 +25,10 @@
             var userId = null;
             var videoIsPlaying = true;
             var updateLock = false;
-            var contentPlayer = $("#content-video-player");
+            var contentPlayer = $("#content-video-player")[0];
             var contentButton  = $(".PlaybackControls__item")[0]
             var slider = $('.Timeline__slider');
+            /*
             const sliderValObs = new MutationObserver((mrecord) => {
                 let diff = +getSliderValue() - +mrecord[0].oldValue; 
                 if(diff > SEEK_THRESHOLD || diff < -SEEK_THRESHOLD){
@@ -51,19 +52,16 @@
                     }
                 }
             });
-
-            var testCounter = 1
+            */
 
             // Recieve messages from popup
             chrome.runtime.onMessage.addListener((message, sender, callback) => {
                 if(message.request === 'create-session'){
-                    // pause video
-                    pauseVideo();
                     // wrap video metadata in object
                     let metaData = {
                         "state": getVideoState(),
                         "videoId": getVideoId(),
-                        "lastVideoPos": getVideoTime(),
+                        "lastVideoPos": getVideoPos(),
                         "user": userId
                     };
                     // create session on server
@@ -85,7 +83,10 @@
             //   HANDLE SERVER EVENTS   //
             //////////////////////////////
             socket.on('newSession', (data) => {
+                // store sessionId of created session
                 sessionId = data;
+
+                //create url for to allow other users to join
                 let joinUrl = document.URL + "?hpSessionId=" + data
                 chrome.runtime.sendMessage(joinUrl);
             });
@@ -117,66 +118,31 @@
             });
 
             //Sync video with server metadata
-            socket.on("returnSession", (data) => {
-                blockUpdates().then(() => {
-                    (data.state === PAUSE_STATE) ? pauseVideo() : playVideo();
-                }).then(() => {
-                    console.log(`readyState: ${contentPlayer.readyState}`);
-                    handleViewer.goToTime(data.lastVideoPos);
-                    printTime(getSliderValue());
-                }).then(() => {
-                    deactivateLock();
-                });
-            });
+           socket.on("returnSession", (data) => {
+               // update video state
+                changeVideoState(data.state)
+               // update video position
+               seekTo(data.lastVideoPos)
+           });
 
             /////////////////////////////////
             //    SEND UPDATES TO SERVER   //
             /////////////////////////////////
-            // Play/pause updates
-            $('[data-testid=playButton]').get(0).onclick = () => {
-                if($('.PlayButton').length > 0) {
-                    //clicked to play video
-                    videoIsPlaying = true;
-                    if(sessionId != null && !updateLock) {
-                        let up = {"sessionId": sessionId,"userId": userId,"state": PLAY_STATE};
-                        socket.emit("updateSession", up);
-                        console.log(`Update sent(play) | ${up}`);
-                    }
-                    else{
-                        if(sessionId == null) {
-                            console.log("Not connected to a session(play)")
-                        }
-                        if(updateLock) {
-                            console.log("Update blocked by lock(play)");
-                        }                
-                    }
-                }
-                else if($('.PauseButton').length > 0) {
-                    //clicked to pause video
-                    videoIsPlaying = false;
-                    if(sessionId != null && !updateLock) {
-                        let pu = {"sessionId": sessionId,"userId": userId,"state": PAUSE_STATE};
-                        socket.emit("updateSession", pu);
-                        console.log(`Update sent(pause) | ${pu}`);
-                    }
-                    else{
-                        if(sessionId == null) {
-                            console.log("Not connected to a session(pause)")
-                        }
-                        if(updateLock) {
-                            console.log("Update blocked by lock(pause)");
-                        }
-                    }
-                }
-                else {
-                    console.log("Couldn't find UI button");
-                }
-            };
 
-            // Time updates such as forwarding/rewinding
-            sliderValObs.observe(slider.get(0), {
-                attributeFilter: [ARIA_VALUENOW],
-                attributeOldValue: true
+            // Send play and pause updates to server
+            contentButton.addEventListener("click", () => {
+                let stateAfterClick = (getVideoState() === "paused") ? "playing" : "paused";
+                console.log(`content button clicked. now state = ${stateAfterClick}`);
+                // send update to server
+                update = {"sessionId": sessionId, "userId": userId, "state": stateAfterClick, "lastVideoPos": getVideoPos()};
+                sendSessionUpdate(update)
+            });
+
+            // Send seek updates to server
+            contentPlayer.addEventListener("seeked", () => {
+                console.log(`player finished seeking, pos is now ${getVideoPos()}`);
+                update = {"sessionId": sessionId,"userId": userId, "lastVideoPos": getVideoPos()}
+                sendSessionUpdate(update);
             });
 
             ///////////////////////
@@ -255,22 +221,6 @@
                 });
             }
 
-            // return string
-            function getVideoState() {
-                return contentPlayer.paused ? 'paused' : 'playing';
-            }
-
-            //return float
-            function getVideoTime() {
-                return contentPlayer.currentTime;
-            }
-
-            // return string
-            function getVideoId() {
-                let pageUrl = document.URL.split('/');
-                return pageUrl[pageUrl.length - 1];
-            }
-
             function updateVideoTime(newTime) {
                 printTime(getSliderValue());
                 console.log(contentPlayer.readyState);
@@ -319,6 +269,11 @@
                 updateLock = false;
             }
 
+            //return float
+            function getVideoTime() {
+                return contentPlayer.currentTime;
+            }
+
             function printTime(value) {
                 let minutes = Math.floor(+value / 60);
                 let seconds = Math.floor(+value % 60);
@@ -329,6 +284,7 @@
             /**
              * Updates the currentTime property of the content player
              * @param {Number} pos timestamp in seconds
+             * @return None
              */
             function seekTo(pos) {
                 contentPlayer.currentTime = pos
@@ -337,13 +293,46 @@
             /**
              * Changes the videos playing state if newState is different
              * the current state else does nothing
-             * @param {String} newState paused or playing 
+             * @param {String} newState paused or playing
+             * @return None 
              */
             function changeVideoState(newState) {
                 currentState = contentPlayer.paused ? "paused" : "playing";
                 if (currentState != newState) {
                     contentButton.click()
                 }                
+            }
+
+            /**
+             * Returns if video is paused or playing
+             * @return {String} paused or playing
+             */
+            function getVideoState() {
+                return contentPlayer.paused ? 'paused' : 'playing';
+            }
+
+            /**
+             * Gets the id of the video 
+             * @return {String} id containing hyphens, letters and numbers
+             */
+            function getVideoId() {
+                let pageUrl = document.URL.split('/');
+                return pageUrl[pageUrl.length - 1];
+            }
+
+            /**
+             * @return {Number} the video position from start time in seconds
+             */
+            function getVideoPos() {
+                return contentPlayer.currentTime;
+            }
+
+            /**
+             * Sends metadata to be updated for a session stored on server
+             * @param {Object} update object containing video metadata
+             */
+            function sendSessionUpdate(update) {
+                socket.emit("updateSession", update);
             }
         });
     }
