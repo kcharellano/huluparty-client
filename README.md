@@ -10,7 +10,7 @@
 * [Contact](#contact)
 
 ## General info
-The client part of HuluParty is a chrome extension that allows users to create and join watch parties on [Hulu](https://www.hulu.com).
+The client component of HuluParty is a chrome extension that allows users to create and join watch parties on [Hulu](https://www.hulu.com).
 
 The HuluParty extension only works when a user is on a Hulu movie/video. You'll know when HuluParty is active when the icon becomes bright green.
 
